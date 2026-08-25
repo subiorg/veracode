@@ -1,6 +1,6 @@
 name: Veracode Static Code Analysis
 
-run-name: Static Code Analysis - ${{ github.event.client_payload.repository.name }}
+run-name: Static Code Analysis - ${{ github.event.client_payload.workflow_name }}
 
 concurrency:
   group: ${{ github.event.client_payload.event_type }}-${{ github.event.client_payload.repository.name }}-${{ github.event.client_payload.repository.branch }}
@@ -24,33 +24,48 @@ on:
       - scala-pipeline-scan
       - scala-policy-scan
       - dart-pipeline-scan
-      - dart-policy-sca
+      - dart-policy-scan
       - java-pipeline-scan
       - java-policy-scan
       - unidentified-lang-pipeline-scan
       - unidentified-lang-policy-scan
+      - ruby-pipeline-scan
+      - ruby-policy-scan
+      - apex-pipeline-scan
+      - apex-policy-scan
+      - perl-pipeline-scan
+      - perl-policy-scan
+      - vb6-pipeline-scan
+      - vb6-policy-scan
 
 jobs:
+  cleanup:
+    uses: ./.github/workflows/veracode-clean-up.yml
+    with:
+      runs_on: ${{ github.event.client_payload.user_config.default_runs_on }}
+
   register:
+    needs: cleanup
     uses: ./.github/workflows/veracode-check-run.yml
     with:
       check_run_name: ${{ github.workflow }} - ${{ contains(github.event.action, 'policy') && 'Policy' || 'Pipeline' }}
       head_sha: ${{ github.event.client_payload.sha }}
-      repositroy_owner: ${{ github.event.client_payload.repository.owner }}
-      repositroy_name: ${{ github.event.client_payload.repository.name }}
+      repository_owner: ${{ github.event.client_payload.repository.owner }}
+      repository_name: ${{ github.event.client_payload.repository.name }}
       event_type: ${{ github.event.client_payload.event_type }}
       github_token: ${{ github.event.client_payload.token }}
       run_id: ${{ github.run_id }}
       branch: ${{ github.event.client_payload.repository.branch }}
+      default_runs_on: ${{ github.event.client_payload.user_config.default_runs_on }}
 
   validations:
     needs: register
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJson(github.event.client_payload.user_config.default_runs_on) }}
     name: Validations
     steps:
       - name: Verify Veracode API credentials
         id: verify_api_creds
-        uses: veracode/github-actions-integration-helper@v0.1.3
+        uses: veracode/github-actions-integration-helper@v0.1.11
         with:
           action: validateVeracodeApiCreds
           token: ${{ github.event.client_payload.token }}
@@ -63,7 +78,7 @@ jobs:
       - name: Verify Policy name
         id: verify_policy_name
         if: success()
-        uses: veracode/github-actions-integration-helper@v0.1.3
+        uses: veracode/github-actions-integration-helper@v0.1.11
         with:
           action: validatePolicyName
           token: ${{ github.event.client_payload.token }}
@@ -86,7 +101,13 @@ jobs:
       ref: ${{ github.event.client_payload.sha }}
       token: ${{ github.event.client_payload.token }}
       event_name: ${{ github.event.action }}
-
+      build_runs_on: ${{ github.event.client_payload.user_config.build_runs_on }}
+      build_packager_image: ${{ github.event.client_payload.user_config.build_packager_image }}
+      build_predependency_command: ${{ github.event.client_payload.user_config.build_predependency_command }}
+      ruby_version: ${{ github.event.client_payload.user_config.ruby_version }}
+      bundle_version: ${{ github.event.client_payload.user_config.bundle_version }}
+      default_runs_on: ${{ github.event.client_payload.user_config.default_runs_on }}
+      debug: ${{ github.event.client_payload.user_config.debug }}
 
   pipeline_scan:
     # needs the build step before this job will start running
@@ -109,6 +130,8 @@ jobs:
       break_build_on_error: ${{ github.event.client_payload.user_config.break_build_on_error }}
       filter_mitigated_flaws: ${{ github.event.client_payload.user_config.filter_mitigated_flaws }}
       language: ${{ github.event.client_payload.repository.language }}
+      default_runs_on: ${{ github.event.client_payload.user_config.default_runs_on }}
+      debug: ${{ github.event.client_payload.user_config.debug }}
     secrets: inherit
 
   policy_scan:
@@ -132,4 +155,6 @@ jobs:
       break_build_on_error: ${{ github.event.client_payload.user_config.break_build_on_error }}
       filter_mitigated_flaws: ${{ github.event.client_payload.user_config.filter_mitigated_flaws }}
       language: ${{ github.event.client_payload.repository.language }}
+      default_runs_on: ${{ github.event.client_payload.user_config.default_runs_on }}
+      debug: ${{ github.event.client_payload.user_config.debug }}
     secrets: inherit
